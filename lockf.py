@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 
 import os
