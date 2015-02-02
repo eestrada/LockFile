@@ -22,7 +22,7 @@ except NameError:
 
 class LockFile(io.IOBase):
     """Simple class for creating on disk lock files on POSIX Operating Systems.
-    
+
     When used as a context manager, an object of this class will automatically lock and unlock itself. Also, it can be set up to automatically delete its associated disk file upon closing.
 
     This class must be inherited to be useful. It should be inherited BEFORE a file-like class (ideally something in the io.IOBase hierarchy). Regardless of the class type, the class MUST implement a fileno() method returning a file descriptor. This is because all the locking is done at the operating system level using file descriptors."""
@@ -40,7 +40,7 @@ class LockFile(io.IOBase):
 
     def lock(self, block=None):
         """Lock the owned disk file.
-        
+
         :param block: If 'block' is set to 'None' then the blocking setting will be taken from the objects 'block' attribute. Else, 'block' will be cast to a bool. When block is set to False, an OSError exception is raised if the the file is already locked by a different process. When block is set to True (the object level default), then this method will block until the file can be locked by this object, at which point the method will return."""
 
         log.debug("Attempting lock on object '%s'...", repr(self))
@@ -69,7 +69,7 @@ class LockFile(io.IOBase):
 
     def unlock(self):
         """If the disk file is locked by this object, then unlock it.
-        
+
         This should have no effect if the file is already unlocked."""
 
         log.debug("Attempting to unlock object '%s'...", repr(self))
@@ -78,7 +78,7 @@ class LockFile(io.IOBase):
 
     def close(self, delete=None):
         """Close the file.
-        
+
         This will behave like the close method on any other builtin file object with one exception: if delete is set to True at the object level or as a method parameter, the object will attempt to unlink the file from disk before closing (this is allowed on Unix-like systems)."""
 
         if not self.closed:
@@ -193,7 +193,7 @@ def open(file, mode="r", buffering=None, encoding=None, errors=None,
         raise ValueError("unknown mode: %r" % mode)
     if binary:
         return buffer
-    text = TextIOWrapper(buffer, encoding, errors, newline, line_buffering, 
+    text = TextIOWrapper(buffer, encoding, errors, newline, line_buffering,
                         block=block, delete=delete)
     text.mode = mode
     return text
@@ -221,4 +221,3 @@ if __name__ == '__main__':
     _test(mode='wb', buffering=0)
     _test(mode='rb')
     _test(mode='r+b')
-
