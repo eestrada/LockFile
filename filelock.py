@@ -1,5 +1,8 @@
 #!/usr/bin/env python
-from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
+
+"""Module for advisory locking of files on disk."""
+
+from __future__ import division, absolute_import, print_function, unicode_literals
 
 import os
 import io
@@ -8,42 +11,66 @@ import copy
 import time
 import fcntl
 import logging
-import datetime
+# import datetime
 
-log = logging.getLogger(__name__ + '.PosixLock')
-log.setLevel(logging.DEBUG)
+_log_name = 'main' if __name__ == '__main__' else __name__
+log = logging.getLogger(_log_name)
+log.setLevel(logging.DEBUG if _log_name is 'main' else logging.ERROR)
 
 # Clumsy fix for py3k compatibility
 # TODO: find a more elegant solution for the bastring issue in py3k
 try:
     unicode
 except NameError:
-    basestring = str
+    basestring = (str, bytes)
+
 
 class PosixLock(io.IOBase):
+
     """Simple class for creating on disk lock files on POSIX Operating Systems.
 
-    When used as a context manager, an object of this class will automatically lock and unlock itself. Also, it can be set up to automatically delete its associated disk file upon closing.
+    When used as a context manager, an object of this class will automatically
+    lock and unlock itself. Also, it can be set up to automatically delete its
+    associated disk file upon closing.
 
-    This class must be inherited to be useful. It should be inherited BEFORE a file-like class (ideally something in the io.IOBase hierarchy). Regardless of the class type, the class MUST implement a fileno() method returning a file descriptor. This is because all the locking is done at the operating system level using file descriptors."""
+    This class must be inherited to be useful. It should be inherited BEFORE a
+    file-like class (ideally something in the io.IOBase hierarchy). Regardless
+    of the class type, the class MUST implement a fileno() method returning a
+    file descriptor. This is because all the locking is done at the operating
+    system level using file descriptors.
+    """
 
     def __init__(self, *args, **kwargs):
         """Initialize a PosixLock object.
 
-        :param block: Whether or not to block when attempting to lock the file when another lock is in place already. This defaults to True. If set to False, locking will throw an IOError if the file is already locked. See fcntl module for more documentation. This parameter must be passed as a keyword argument.
-        :param delete: Whether or not to delete the PosixLock's associated disk file when it is closed. This defaults to False to give the behaviour most people would expect when working with file objects. This parameter must be passed as a keyword argument."""
-
+        :param block: Whether or not to block when attempting to lock the file
+        when another lock is in place already. This defaults to True. If set to
+        False, locking will throw an IOError if the file is already locked. See
+        fcntl module for more documentation. This parameter must be passed as a
+        keyword argument.
+        :param delete: Whether or not to delete the PosixLock's associated disk
+        file when it is closed. This defaults to False to give the behaviour
+        most people would expect when working with file objects. This parameter
+        must be passed as a keyword argument.
+        """
         self.block = bool(kwargs.pop('block', True))
         self.delete = bool(kwargs.pop('delete', False))
+        self.log = logging.getLogger(_log_name + '.PosixLock')
 
         super(PosixLock, self).__init__(*args, **kwargs)
 
     def lock(self, block=None):
         """Lock the owned disk file.
 
-        :param block: If 'block' is set to 'None' then the blocking setting will be taken from the objects 'block' attribute. Else, 'block' will be cast to a bool. When block is set to False, an OSError exception is raised if the the file is already locked by a different process. When block is set to True (the object level default), then this method will block until the file can be locked by this object, at which point the method will return."""
-
-        log.debug("Attempting lock on object '%s'...", repr(self))
+        :param block: If 'block' is set to 'None' then the blocking setting
+        will be taken from the objects 'block' attribute. Else, 'block' will be
+        cast to a bool. When block is set to False, an OSError exception is
+        raised if the the file is already locked by a different process. When
+        block is set to True (the object level default), then this method will
+        block until the file can be locked by this object, at which point the
+        method will return.
+        """
+        self.log.debug("Attempting lock on object '%s'...", repr(self))
 
         try:
             op = copy.copy(self.lock_op)
@@ -54,39 +81,45 @@ class PosixLock(io.IOBase):
                 self.lock_op = fcntl.LOCK_SH
             op = copy.copy(self.lock_op)
 
-        block = self.block if block == None else bool(block)
+        block = self.block if block is None else bool(block)
 
-        if block is False: # if in non-blocking mode
+        if block is False:  # if in non-blocking mode
             op |= fcntl.LOCK_NB
 
         try:
             fcntl.lockf(self, op)
         except OSError:
-            log.debug("Exception thrown for attempted lock on object %s!", repr(self))
+            self.log.debug("Exception thrown for attempted lock on object %r!",
+                           self)
             raise
 
-        log.debug("Lock acquired for object %s!", repr(self))
+        self.log.debug("Lock acquired for object %s!", repr(self))
 
     def unlock(self):
         """If the disk file is locked by this object, then unlock it.
 
-        This should have no effect if the file is already unlocked."""
-
-        log.debug("Attempting to unlock object '%s'...", repr(self))
+        This should have no effect if the file is already unlocked.
+        """
+        self.log.debug("Attempting to unlock object '%s'...", repr(self))
         fcntl.lockf(self, fcntl.LOCK_UN)
-        log.debug("Unlocking complete for object %s!", repr(self))
+        self.log.debug("Unlocking complete for object %s!", repr(self))
 
     def close(self, delete=None):
         """Close the file.
 
-        This will behave like the close method on any other builtin file object with one exception: if delete is set to True at the object level or as a method parameter, the object will attempt to unlink the file from disk before closing (this is allowed on Unix-like systems)."""
-
+        This will behave like the close method on any other builtin file object
+        with one exception: if delete is set to True at the object level or as
+        a method parameter, the object will attempt to unlink the file from
+        disk before closing (this is allowed on Unix-like systems).
+        """
         if not self.closed:
-            delete = self.delete if delete == None else bool(delete)
+            delete = self.delete if delete is None else bool(delete)
 
             if delete:
-                try: os.unlink(self.name)
-                except OSError: pass
+                try:
+                    os.unlink(self.name)
+                except OSError:
+                    pass
 
         return super(PosixLock, self).close()
 
@@ -99,17 +132,22 @@ class PosixLock(io.IOBase):
         """Exit context."""
         return super(PosixLock, self).__exit__(exc_type, exc_value, traceback)
 
+
 class FileIO(PosixLock, io.FileIO):
     pass
+
 
 class BufferedReader(PosixLock, io.BufferedReader):
     pass
 
+
 class BufferedWriter(PosixLock, io.BufferedWriter):
     pass
 
+
 class BufferedRandom(PosixLock, io.BufferedRandom):
     pass
+
 
 class TextIOWrapper(PosixLock, io.TextIOWrapper):
     pass
@@ -194,11 +232,15 @@ def open(file, mode="r", buffering=None, encoding=None, errors=None,
     if binary:
         return buffer
     text = TextIOWrapper(buffer, encoding, errors, newline, line_buffering,
-                        block=block, delete=delete)
+                         block=block, delete=delete)
     text.mode = mode
     return text
 
+
+# TODO: use subprocess or multiprocessing module to test this, instead of
+# manually starting two processes.
 def _test(**kwargs):
+    """Test file locking classes."""
     logging.basicConfig(level=logging.DEBUG)
     print("Opening file...")
     fp = open("/tmp/test.lock", **kwargs)
@@ -209,7 +251,7 @@ def _test(**kwargs):
         print("Ok. Done sleeping.")
         fp.unlock()
     else:
-        print("I will get here when the lock is released from another process.")
+        print("I will get here when the lock is released by another process.")
         fp.unlock()
     fp.close()
 
