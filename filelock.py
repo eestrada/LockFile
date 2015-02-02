@@ -10,7 +10,7 @@ import fcntl
 import logging
 import datetime
 
-log = logging.getLogger(__name__ + '.LockFile')
+log = logging.getLogger(__name__ + '.PosixLock')
 log.setLevel(logging.DEBUG)
 
 # Clumsy fix for py3k compatibility
@@ -20,7 +20,7 @@ try:
 except NameError:
     basestring = str
 
-class LockFile(io.IOBase):
+class PosixLock(io.IOBase):
     """Simple class for creating on disk lock files on POSIX Operating Systems.
 
     When used as a context manager, an object of this class will automatically lock and unlock itself. Also, it can be set up to automatically delete its associated disk file upon closing.
@@ -28,15 +28,15 @@ class LockFile(io.IOBase):
     This class must be inherited to be useful. It should be inherited BEFORE a file-like class (ideally something in the io.IOBase hierarchy). Regardless of the class type, the class MUST implement a fileno() method returning a file descriptor. This is because all the locking is done at the operating system level using file descriptors."""
 
     def __init__(self, *args, **kwargs):
-        """Initialize a LockFile object.
+        """Initialize a PosixLock object.
 
         :param block: Whether or not to block when attempting to lock the file when another lock is in place already. This defaults to True. If set to False, locking will throw an IOError if the file is already locked. See fcntl module for more documentation. This parameter must be passed as a keyword argument.
-        :param delete: Whether or not to delete the LockFile's associated disk file when it is closed. This defaults to False to give the behaviour most people would expect when working with file objects. This parameter must be passed as a keyword argument."""
+        :param delete: Whether or not to delete the PosixLock's associated disk file when it is closed. This defaults to False to give the behaviour most people would expect when working with file objects. This parameter must be passed as a keyword argument."""
 
         self.block = bool(kwargs.pop('block', True))
         self.delete = bool(kwargs.pop('delete', False))
 
-        super(LockFile, self).__init__(*args, **kwargs)
+        super(PosixLock, self).__init__(*args, **kwargs)
 
     def lock(self, block=None):
         """Lock the owned disk file.
@@ -88,30 +88,30 @@ class LockFile(io.IOBase):
                 try: os.unlink(self.name)
                 except OSError: pass
 
-        return super(LockFile, self).close()
+        return super(PosixLock, self).close()
 
     def __enter__(self):
         """Enter context."""
         self.lock()
-        return super(LockFile, self).__enter__()
+        return super(PosixLock, self).__enter__()
 
     def __exit__(self, exc_type, exc_value, traceback):
         """Exit context."""
-        return super(LockFile, self).__exit__(exc_type, exc_value, traceback)
+        return super(PosixLock, self).__exit__(exc_type, exc_value, traceback)
 
-class FileIO(LockFile, io.FileIO):
+class FileIO(PosixLock, io.FileIO):
     pass
 
-class BufferedReader(LockFile, io.BufferedReader):
+class BufferedReader(PosixLock, io.BufferedReader):
     pass
 
-class BufferedWriter(LockFile, io.BufferedWriter):
+class BufferedWriter(PosixLock, io.BufferedWriter):
     pass
 
-class BufferedRandom(LockFile, io.BufferedRandom):
+class BufferedRandom(PosixLock, io.BufferedRandom):
     pass
 
-class TextIOWrapper(LockFile, io.TextIOWrapper):
+class TextIOWrapper(PosixLock, io.TextIOWrapper):
     pass
 
 # The current implementation of 'open' is copied nearly verbatim from the
